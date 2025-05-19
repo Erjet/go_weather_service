@@ -1,0 +1,69 @@
+version: '3.8'
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:
+
+services:
+  database:
+    image: postgres:13
+    container_name: weather_db
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: db_username
+      POSTGRES_PASSWORD: db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  migrations:
+    image: flyway/flyway:latest
+    container_name: weather_migrations_flyway
+    networks:
+      - app-network
+    volumes:
+      - ./migrations/sql:/flyway/sql 
+    depends_on:
+
+      database:
+        condition: service_healthy 
+
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://database:5432/postgres 
+      FLYWAY_USER: db_username
+      FLYWAY_PASSWORD: db_password
+   
+
+
+  app:
+    build:
+      context: ./app 
+      dockerfile: Dockerfile
+    container_name: weather_app
+    networks:
+      - app-network
+    ports:
+      - "8080:8080" 
+    depends_on:
+      database:
+        condition: service_healthy
+
+      migrations:
+        condition: service_completed_successfully
+
+    environment:
+
+      DATABASE_URL: postgresql://db_username:db_password@database:5432/postgres?sslmode=disable

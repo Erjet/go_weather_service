@@ -1,0 +1,11 @@
+{
+  "Port": ":8080",
+  "DBConnectionString": "postgresql://db_username:db_password@localhost:5432/postgres?sslmode=disable",
+  "LocalURL": "http://localhost:8080",
+  "SMTP": {
+    "Adres": "smtp.gmail.com",
+    "Port": 587,
+    "Username": "pikkljuihilhu@gmail.com",
+    "Password": "ueyg cmai exsb rsxm"
+  }
+}

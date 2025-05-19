@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Application</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body { display: flex; justify-content: center; align-items: flex-start;  min-height: 100vh; background-color: #f0f2f5; padding: 2rem;  gap: 2rem;  flex-wrap: wrap;  }
+    .form-container { background: #fff; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 320px; }
+    h2 { text-align: center; margin-bottom: 1.5rem; color: #333; font-size: 1.25rem; }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: .5rem; color: #555; font-size: .9rem; }
+    input[type="email"], input[type="text"], select { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 5px; font-size: .95rem; }
+    .error { color: #d93025; font-size: .8rem; margin-top: .25rem; display: none; }
+    .btn-submit, .btn-fetch { width: 100%; padding: .75rem; background: #007bff; border: none; border-radius: 5px; color: #fff; font-size: 1rem; cursor: pointer; transition: background .2s ease; }
+    .btn-submit:hover, .btn-fetch:hover { background: #0056b3; }
+    .message { text-align: center; margin-top: 1rem; font-size: .95rem; }
+    .success { color: #155724; }
+    .error-msg { color: #721c24; }
+    .weather-display { background: #fff; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 280;  margin-top: 1rem; }
+    .weather-display h3 { text-align: center; margin-bottom: 1rem; color: #333; font-size: 1.1rem; }
+    .weather-info p { margin-bottom: .5rem; color: #555; font-size: .95rem; }
+    .weather-info strong { color: #333; }
+    .weather-error { color: #d93025; text-align: center; font-size: .95rem; }
+  </style>
+</head>
+<body>
+
+  <div class="form-container">
+    <form id="subscriptionForm" novalidate>
+      <h2>Subscribe for weather updates</h2>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+        <div class="error" id="error-email"></div>
+      </div>
+      <div class="form-group">
+        <label for="city">City</label>
+        <select id="city" name="city" required>
+          <option value="">Select a city</option>
+          <option value="Kyiv">Kyiv</option>
+          <option value="London">London</option>
+          <option value="Dubai">Dubai</option>
+          <option value="New-York">New-York</option>
+          <option value="Tokio">Tokio</option>
+        </select>
+        <div class="error" id="error-city"></div>
+      </div>
+      <div class="form-group">
+        <label for="frequency">Update Frequency</label>
+        <select id="frequency" name="frequency" required>
+        <option value="">Select frequency</option>
+        <option value="hourly">Hourly</option>
+        <option value="daily">Daily</option>
+      </select>
+        <div class="error" id="error-frequency"></div>
+      </div>
+      <button type="submit" class="btn-submit">Subscribe</button>
+      <div class="message" id="formMessage"></div>
+    </form>
+  </div>
+
+  <div class="form-container">
+    <form id="weatherLookupForm">
+      <h2>Get Current Weather</h2>
+      <div class="form-group">
+        <label for="weatherCitySelect">City</label>
+        <select id="weatherCitySelect" name="weatherCity" required>
+            <option value="">Loading cities...</option>
+        </select>
+        <div class="error" id="error-weatherCitySelect">Please select a city.</div>
+      </div>
+      <button type="button" class="btn-fetch" id="getWeatherBtn">Get Weather</button>
+      <div class="message" id="weatherMessage"></div>
+    </form>
+
+    <div class="weather-display" id="weatherResultArea" style="display: none;">
+      <h3>Weather Details</h3>
+      <div class="weather-info" id="weatherInfo">
+        </div>
+      <div class="weather-error" id="weatherError">
+        </div>
+    </div>
+  </div>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const subscriptionForm = document.getElementById('subscriptionForm');
+      subscriptionForm.addEventListener('submit', onSubscriptionFormSubmit);
+
+      const weatherLookupForm = document.getElementById('weatherLookupForm');
+      const getWeatherBtn = document.getElementById('getWeatherBtn');
+      getWeatherBtn.addEventListener('click', onWeatherLookup);
+
+   
+      fetchAndPopulateCities();
+    });
+
+
+    function onSubscriptionFormSubmit(event) {
+      event.preventDefault();
+      clearSubscriptionFormFeedback();
+
+      const values = getSubscriptionFormValues();
+      const errors = validateSubscriptionForm(values);
+
+      if (Object.keys(errors).length) {
+        showSubscriptionValidationErrors(errors);
+        return;
+      }
+
+      const payload = buildSubscriptionPayload(values);
+      sendSubscription(payload);
+    }
+
+    function clearSubscriptionFormFeedback() {
+      const msg = document.getElementById('formMessage');
+      msg.textContent = '';
+      msg.className = 'message';
+      ['email', 'city', 'frequency'].forEach(id => {
+        document.getElementById(`error-${id}`).textContent = ''; 
+        document.getElementById(`error-${id}`).style.display = 'none';
+      });
+    }
+
+    function getSubscriptionFormValues() {
+      return {
+        email: document.getElementById('email').value.trim(),
+        city: document.getElementById('city').value,
+        frequency: document.getElementById('frequency').value
+      };
+    }
+
+    function validateSubscriptionForm({ email, city, frequency }) {
+      const errors = {};
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!email || !emailPattern.test(email)) {
+        errors.email = 'Please enter a valid email address.';
+      }
+      if (!city) {
+        errors.city = 'Please select a city.';
+      }
+      if (!frequency) {
+        errors.frequency = 'Please choose an update frequency.';
+      }
+      return errors;
+    }
+
+    function showSubscriptionValidationErrors(errors) {
+      Object.entries(errors).forEach(([field, message]) => {
+        const errDiv = document.getElementById(`error-${field}`);
+        errDiv.textContent = message;
+        errDiv.style.display = 'block';
+      });
+    }
+
+    function buildSubscriptionPayload({ email, city, frequency }) {
+      return { email, city, frequency };
+    }
+
+    async function sendSubscription(payload) {
+      const formMessageDiv = document.getElementById('formMessage');
+      try {
+        formMessageDiv.textContent = 'Subscribing...';
+        formMessageDiv.className = 'message';
+
+        const response = await fetch('/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        handleSubscriptionResponse(response);
+      } catch (err) {
+        displaySubscriptionMessage('error-msg', 'Unable to connect to the server. Please try again later.');
+      }
+    }
+
+    async function handleSubscriptionResponse(response) {
+      if (response.ok) {
+        displaySubscriptionMessage('success', 'Subscription successful! Please check your email for confirmation.');
+        document.getElementById('subscriptionForm').reset();
+      } else if (response.status === 409) {
+        displaySubscriptionMessage('error-msg', 'This email is already subscribed.');
+      } else if (response.status === 400) {
+        try {
+            const errorText = await response.text();
+            displaySubscriptionMessage('error-msg', `Invalid input: ${errorText}`);
+        } catch {
+             displaySubscriptionMessage('error-msg', 'Invalid input. Please review your entries.');
+        }
+
+      } else {
+        displaySubscriptionMessage('error-msg', 'An unexpected error occurred during subscription. Please try again later.');
+      }
+    }
+
+    function displaySubscriptionMessage(type, text) {
+      const msgDiv = document.getElementById('formMessage');
+      msgDiv.textContent = text;
+      msgDiv.className = 'message';
+      msgDiv.classList.add(type);
+    }
+
+      async function onWeatherLookup() {
+        clearWeatherFeedback();
+
+        const citySelect = document.getElementById('weatherCitySelect'); 
+        const city = citySelect.value; 
+
+        if (!city) {
+            showWeatherValidationError('Please select a city.');
+            return;
+        }
+
+        const weatherMessageDiv = document.getElementById('weatherMessage');
+        const weatherResultArea = document.getElementById('weatherResultArea');
+
+        try {
+            weatherMessageDiv.textContent = 'Fetching weather...'; 
+            weatherMessageDiv.className = 'message';
+            weatherResultArea.style.display = 'none';
+
+
+            const url = `/weather?city=${encodeURIComponent(city)}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+
+            });
+
+
+            if (response.ok) { 
+                const weatherData = await response.json();
+                displayWeatherInfo(weatherData, city); 
+            } else {
+                 try {
+                    const errorText = await response.text();
+                    displayWeatherError(`Error fetching weather: ${errorText}`);
+                } catch {
+                     displayWeatherError('Error fetching weather. Please try again.');
+                }
+            }
+        } catch (err) {
+            console.error('Fetch error:', err);
+            displayWeatherError('Unable to connect to the server to fetch weather.');
+        } finally {
+            weatherMessageDiv.textContent = '';
+            weatherMessageDiv.className = 'message'; 
+        }
+    }
+    function clearWeatherFeedback() {
+
+        document.getElementById('error-weatherCitySelect').textContent = '';
+        document.getElementById('error-weatherCitySelect').style.display = 'none';
+        document.getElementById('weatherMessage').textContent = '';
+        document.getElementById('weatherMessage').className = 'message';
+        document.getElementById('weatherResultArea').style.display = 'none';
+        document.getElementById('weatherInfo').innerHTML = '';
+        document.getElementById('weatherError').textContent = '';
+    }
+
+    function showWeatherValidationError(message) {
+        const errDiv = document.getElementById('error-weatherCitySelect');
+        errDiv.textContent = message;
+        errDiv.style.display = 'block';
+    }
+
+    function displayWeatherInfo(data, city) {
+        const weatherResultArea = document.getElementById('weatherResultArea');
+        const weatherInfoDiv = document.getElementById('weatherInfo');
+        const weatherErrorDiv = document.getElementById('weatherError');
+
+        weatherErrorDiv.textContent = '';
+
+        weatherInfoDiv.innerHTML = `
+            <p><strong>City:</strong> ${city}</p>
+            <p><strong>Temperature:</strong> ${data.temperature}°C</p>
+            <p><strong>Humidity:</strong> ${data.humidity}%</p>
+            <p><strong>Description:</strong> ${data.description}</p>
+        `;
+        weatherResultArea.style.display = 'block';
+    }
+
+    function displayWeatherError(message) {
+        const weatherResultArea = document.getElementById('weatherResultArea');
+        const weatherInfoDiv = document.getElementById('weatherInfo');
+        const weatherErrorDiv = document.getElementById('weatherError');
+
+        weatherInfoDiv.innerHTML = '';
+        weatherErrorDiv.textContent = message;
+        weatherResultArea.style.display = 'block';
+    }
+
+
+    async function fetchAndPopulateCities() {
+        const citySelect = document.getElementById('weatherCitySelect');
+        const weatherMessageDiv = document.getElementById('weatherMessage');
+
+        try {
+            weatherMessageDiv.textContent = 'Loading cities...';
+            weatherMessageDiv.className = 'message';
+
+            const response = await fetch('/getCities', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (response.ok) {
+                const cities = await response.json();
+                populateCitySelect(citySelect, cities);
+            } else {
+               
+                console.error('Error fetching cities:', response.status, response.statusText);
+                citySelect.innerHTML = '<option value="">Error loading cities</option>';
+               
+                 displayWeatherError('Could not load city list.');
+            }
+        } catch (err) {
+            console.error('Fetch error fetching cities:', err);
+            citySelect.innerHTML = '<option value="">Error loading cities</option>';
+             displayWeatherError('Could not load city list.');
+        } finally {
+             weatherMessageDiv.textContent = '';
+             weatherMessageDiv.className = 'message';
+        }
+    }
+
+    function populateCitySelect(selectElement, cities) {
+        selectElement.innerHTML = '';
+
+      
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select a city';
+        selectElement.appendChild(defaultOption);
+
+     
+        cities.forEach(city => {
+            const option = document.createElement('option');
+            option.value = city; 
+            option.textContent = city;
+            selectElement.appendChild(option);
+        });
+    }
+
+  </script>
+</body>
+</html>
